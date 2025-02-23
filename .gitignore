@@ -14,8 +14,13 @@ x64/
 [Bb]in/
 [Oo]bj/
 
+# Scriber stuff
 [Cc]onversions/
 [Mm]odels/
+[Mm]odel/
+imgui.ini
+# User settings
+settings.json
 
 # MSTest test Results
 [Tt]est[Rr]esult*/

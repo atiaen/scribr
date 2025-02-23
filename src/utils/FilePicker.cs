@@ -7,7 +7,7 @@ using Raylib_cs;
 using Scriber;
 using System.Numerics;
 
-
+// Slightly modified filepicker from https://gist.github.com/prime31/91d1582624eb2635395417393018016e
 public class FilePicker
 {
     static readonly Dictionary<object, FilePicker> _filePickers = new Dictionary<object, FilePicker>();
@@ -64,7 +64,7 @@ public class FilePicker
         ImGui.Text("Current Folder: " + Path.GetFileName(RootFolder) + CurrentFolder.Replace(RootFolder, ""));
         bool result = false;
 
-        if (ImGui.BeginChild(1, new Vector2(Program.screenWidth, Program.screenHeight)))
+        if (ImGui.BeginChild(1, new Vector2(Program.screenWidth - 50, Program.screenHeight - 80)))
         {
             var di = new DirectoryInfo(CurrentFolder);
             if (di.Exists)

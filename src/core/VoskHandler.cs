@@ -43,7 +43,7 @@ public class VoskHandler
     // that zip file will then be extracted into a folder and we just read from that folder rather than expecting a models folder to be there.
     public static string ReadFile2(string pathToFile)
     {
-        Model model = new Model(Directory.GetCurrentDirectory() + "/src/models/model");
+        Model model = new Model(Directory.GetCurrentDirectory() + "/model");
         var mediaInfo = FFProbe.Analyse(pathToFile);
 
         // Demo byte buffer
@@ -58,11 +58,11 @@ public class VoskHandler
             {
                 if (rec.AcceptWaveform(buffer, bytesRead))
                 {
-                    Console.WriteLine(rec.Result());
+                    // Console.WriteLine(rec.Result());
                 }
                 else
                 {
-                    Console.WriteLine(rec.PartialResult());
+                    // Console.WriteLine(rec.PartialResult());
                 }
             }
         }

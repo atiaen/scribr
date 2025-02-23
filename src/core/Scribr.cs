@@ -8,16 +8,43 @@ using System.Text.Json;
 using System.Collections;
 using FFMpegCore;
 using FFMpegCore.Pipes;
+using System.Diagnostics;
+using System.IO.Compression;
 
 
 public class Scribr
 {
     string folderLocation = "";
 
+    Settings settings;
+
     //Queue Items are stored in the following format of {filePath}|{fileName}|{transcribingStatus e.g true or false}
     static List<string> items = new List<string>();
     public void Start()
     {
+        string fileName = "settings.json";
+
+        if (!File.Exists("settings.json"))
+        {
+            var newSettings = new Settings
+            {
+                folderLocation = "",
+                currentModel = "vosk",
+                voskModelType = ""
+            };
+            var options = new JsonSerializerOptions { WriteIndented = true };
+
+            string jsonString = JsonSerializer.Serialize(newSettings, options);
+            File.WriteAllText(fileName, jsonString);
+        }
+        else
+        {
+            string jsonString = File.ReadAllText(fileName);
+            settings =
+              JsonSerializer.Deserialize<Settings>(jsonString);
+            folderLocation = settings.folderLocation;
+        }
+
 
 
         SetConfigFlags(ConfigFlags.Msaa4xHint | ConfigFlags.VSyncHint);
@@ -41,50 +68,91 @@ public class Scribr
             //Imgui Window Constraints seperate from Raylib Window Size etc
             ImGui.SetNextWindowSizeConstraints(new Vector2(GetScreenWidth(), GetScreenHeight()), new Vector2(GetScreenWidth(), GetScreenHeight()));
 
+
             //Imgui window settings where we actually start to draw the window
-            if (ImGui.Begin("Scribr", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoTitleBar))
+            if (ImGui.Begin("Scribr", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.MenuBar))
             {
                 ImGui.SetWindowSize(new Vector2(GetScreenWidth(), GetScreenHeight()));
+                // Create a menu bar
+                if (ImGui.BeginMenuBar())
+                {
+                    if (ImGui.MenuItem("Open output folder") && !string.IsNullOrWhiteSpace(folderLocation))
+                    {
+                        Process.Start(new ProcessStartInfo()
+                        {
+                            FileName = folderLocation,
+                            UseShellExecute = true,
+                            Verb = "open"
+                        });
+                    }
+
+
+                    ImGui.EndMenuBar();
+                }
 
             }
+
+            // if (importOpen)
+            // {
+            //     ImGui.OpenPopup("import-model");
+
+            // }
+
 
             //Top part where we show the users selected output folder
             ImGui.PushTextWrapPos(ImGui.GetCursorPos().X + 400);
             ImGui.Text("Output Folder: " + (string.IsNullOrWhiteSpace(folderLocation) ? "No Folder Selected Yet" : folderLocation));
             ImGui.PopTextWrapPos();
-
-            ImGui.SameLine();
             if (ImGui.Button("Select an output folder."))
             {
                 ImGui.OpenPopup("save-folder");
 
             }
 
-            // ImGui.PushTextWrapPos(ImGui.GetCursorPos().X + 400);
-            // ImGui.PopTextWrapPos();
-            //ImGui.SameLine();
-
+            ImGui.Dummy(new Vector2(0.0f, 5.0f));
+            ImGui.Separator();
             //Button that opens the select audio file pop up/filepicker
             ImGui.Text("Add an audio File: ");
             if (ImGui.Button("Click to add a file"))
             {
-                ImGui.OpenPopup("save-file");
+                if (string.IsNullOrWhiteSpace(folderLocation))
+                {
+                    ImGui.OpenPopup("no_output_folder");
+
+                }
+                else
+                {
+                    ImGui.OpenPopup("save-file");
+
+
+                }
+
+            }
+            ImGui.Dummy(new Vector2(0.0f, 5.0f));
+            ImGui.Separator();
+
+            ImGui.Text("Add/Overwrite existing model");
+            if (ImGui.Button("Click here to import a model"))
+            {
+                ImGui.OpenPopup("import-model");
 
             }
 
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                ImGui.SetTooltip("Importing a new vosk model will overwrite any existing model you have.\nThis action cannot be undone!");
+
+            ImGui.Dummy(new Vector2(0.0f, 5.0f));
+            ImGui.Separator();
+
             //Draw list of add files for transcribing in a listbox
-            if (ImGui.BeginListBox("##", new Vector2(GetScreenWidth() - 20, GetScreenHeight() - 125)))
+            if (ImGui.BeginListBox("##", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetContentRegionAvail().Y - 80)))
             {
                 for (int n = 0; n < items.Count; n++)
                 {
 
                     //Here we just simply split the queue item string into separate variables for individual us
-
                     var fullText = items[n];
                     var all = Helpers.BreakdownQueueItem(fullText);
-                    // var fileName = all[1];
-                    // var filePath = all[0];
-                    // var status = all[2];
 
 
                     ImGui.PushTextWrapPos(ImGui.GetCursorPos().X + 280);
@@ -115,16 +183,25 @@ public class Scribr
             }
 
 
+            ImGui.Dummy(new Vector2(0.0f, 5.0f));
+            ImGui.Separator();
+
+
+            var beginDisabled = false;
+            if (!Directory.Exists("model"))
+            {
+                ImGui.BeginDisabled();
+                beginDisabled = true;
+            }
+
 
             //Main area where the magic happens
-            if (ImGui.Button("Start"))
+            if (ImGui.Button("Start", new Vector2(ImGui.GetContentRegionAvail().X * 0.5f, 0.0f)))
             {
-
 
                 if (items.Count <= 0)
                 {
                     ImGui.OpenPopup("no_items_warning");
-
 
                 }
 
@@ -188,41 +265,112 @@ public class Scribr
                         Console.WriteLine(e);
 
                     }
-                    // Console.WriteLine(r.IsCanceled);
-                    // Console.WriteLine(r.IsCompleted);
-                    // Console.WriteLine(r.IsCompletedSuccessfully);
-
-
 
 
                 }
 
-                // ThreadPool.QueueUserWorkItem(Worker, null);
 
-                // var output = VoskHandler.ReadFile2(fileLocation);
-                // var fileNameLocation = folderLocation + "/output.txt";
+            }
+            if (beginDisabled)
+            {
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                    ImGui.SetTooltip("You currently do not have any vosk models installed.\nPlease first install a model to continue");
 
-                // var finalText = Helpers.ReadJSONString(output, "text");
-                // Helpers.WriteFileToPath(fileNameLocation, finalText);
+                ImGui.EndDisabled();
+
 
             }
 
+
+
             ImGui.SameLine();
 
-            if (ImGui.Button("Clear"))
+            if (ImGui.Button("Clear", new Vector2(ImGui.GetContentRegionAvail().X, 0.0f)))
             {
                 items.Clear();
+            }
+
+            // Vector2 center = ImGui.GetMainViewport().GetCenter();
+            // ImGui.SetNextWindowPos(center, ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+
+            // if (ImGui.BeginPopupModal("Import Warning", ref warningOpen, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize))
+            // {
+            //     ImGui.Text("Importing a new vosk model will overwrite any existing model you have.\n This action cannot be undone!");
+            //     ImGui.Separator();
+
+            //     //static int unused_i = 0;
+            //     //ImGui.Combo("Combo", ref unused_i, "Delete\0Delete harder\0");
+
+            //     // bool dontAskMeNextTime = false;
+            //     // ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(0, 0));
+            //     // ImGui.Checkbox("Don't ask me next time", ref dontAskMeNextTime);
+            //     // ImGui.PopStyleVar();
+
+            //     if (ImGui.Button("Continue", new Vector2(ImGui.GetContentRegionAvail().X * 0.5f, 0)))
+            //     {
+            //         warningOpen = false;
+            //         ImGui.CloseCurrentPopup();
+            //         ImGui.OpenPopup("import-model");
+            //         Console.WriteLine("Should open modal");
+
+            //     }
+
+
+
+
+
+            //     ImGui.SetItemDefaultFocus();
+            //     ImGui.SameLine();
+
+            //     if (ImGui.Button("Cancel", new Vector2(ImGui.GetContentRegionAvail().X, 0)))
+            //     {
+            //         warningOpen = false;
+            //         ImGui.CloseCurrentPopup();
+            //     }
+
+
+            //     ImGui.EndPopup();
+
+            // }
+
+            var importOpen = true;
+
+            if (ImGui.BeginPopupModal("import-model", ref importOpen, ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
+            {
+                var picker = FilePicker.GetFilePicker(this, Path.Combine(Environment.CurrentDirectory), ".zip", false);
+                if (picker.Draw())
+                {
+                    if (!Directory.Exists("model"))
+                    {
+                        // Directory.CreateDirectory("model");
+
+                        ExtractModelFile(picker.SelectedFile);
+                        // ZipFile.ExtractToDirectory(picker.SelectedFile, "model");
+
+                    }
+                    else
+                    {
+                        Helpers.ClearFolder("model");
+                        ExtractModelFile(picker.SelectedFile);
+
+                        // ZipFile.ExtractToDirectory(picker.SelectedFile, "model");
+
+                    }
+                    FilePicker.RemoveFilePicker(this);
+
+                }
+                ImGui.EndPopup();
+
             }
 
             //Magic 2.0 where we show the modal/window for selecting an audio file for the queue
             var isOpen = true;
             if (ImGui.BeginPopupModal("save-file", ref isOpen, ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
             {
-                //Checkout /utils/FIlePicker to understand how this works
-                var picker = FilePicker.GetFilePicker(this, Path.Combine(Environment.CurrentDirectory), ".wav|.mp4|.mp3|.m4a|.m3a|.ogg", false);
+                //Checkout FIlePicker to understand how this works
+                var picker = FilePicker.GetFilePicker(this, Path.Combine(Environment.CurrentDirectory), ".wav|.mp4|.mp3|.ogg", false);
                 if (picker.Draw())
                 {
-                    // Console.WriteLine(picker.SelectedFile);
 
                     //Where we add an item to the queue by deconstructing the full path,e.g getting the file name and path and adding a status
                     if (!items.Contains(picker.SelectedFile))
@@ -236,12 +384,14 @@ public class Scribr
                         var final = secondSplit[secondSplit.Count() - 1];
 
                         //What's happening here is basically file conversion since Vosk only uses .wav files I don't want to hassle too much about converting my files every time
-                        // So why not just convert it myself into a folder users can see that's what the else statement is doing using ffmpeg installed on the machine
-
+                        // So why not just convert it myself into a folder you can see that's what the else statement is doing using ffmpeg installed on the machine
+                        //EDIT: I will most likely include a binary of ffmpeg with each release as not to hassle users with this.
+                        //EDIT 2: I will probably just convert files regardless of type as all files need to be mono and I do not want to have to actively monitor this at all times.
                         if (fileExtension == "wav")
                         {
                             var queueItem = $"{picker.SelectedFile}|{final}|{false}";
-                            // Console.WriteLine(queueItem);
+                            // var mediaInfo = FFProbe.Analyse(picker.SelectedFile);
+                            // Console.WriteLine(mediaInfo.AudioStreams.Count);
                             items.Add(queueItem);
                         }
                         else
@@ -254,33 +404,33 @@ public class Scribr
 
 
                             FFMpegArguments
-                                .FromPipeInput(new StreamPipeSource(audioInputStream))
-                                .OutputToPipe(new StreamPipeSink(audioOutputStream), options =>
-                                    options
-                                    .ForceFormat("wav"))
-                                .ProcessAsynchronously();
+                                    .FromPipeInput(new StreamPipeSource(audioInputStream))
+                                    .OutputToPipe(new StreamPipeSink(audioOutputStream),
+                                    options =>
+                                    options.WithCustomArgument("-ac 1").ForceFormat("wav")).ProcessAsynchronously();
+
 
                             var queueItem = $"conversions/{final}.wav|{final}|{false}";
                             items.Add(queueItem);
-                            ImGui.OpenPopup("file-conversion-finished");
+
+                            //Todo: Popup isn't popping. fix might be to change from - to _ instead
+                            ImGui.OpenPopup("file_conversion_finished");
+
                             Console.WriteLine("Converted file");
-
-
-
 
                         }
 
 
 
-                        ImGui.OpenPopup("item-added-popup");
+                        ImGui.OpenPopup("item_added_popup");
 
                     }
-
-                    // fileLocation = picker.SelectedFile;
                     FilePicker.RemoveFilePicker(this);
                 }
+
                 ImGui.EndPopup();
             }
+
 
             //Magic 3.0 where we show the modal/window for selecting an output folder.
             var folderOpen = true;
@@ -292,45 +442,30 @@ public class Scribr
                 {
                     // Console.WriteLine(folderPicker.SelectedFile);
                     folderLocation = folderPicker.SelectedFile;
+                    settings.folderLocation = folderPicker.SelectedFile;
+
+                    var options = new JsonSerializerOptions { WriteIndented = true };
+                    string jsonString = JsonSerializer.Serialize(settings, options);
+                    File.WriteAllText("settings.json", jsonString);
+
+
                     FilePicker.RemoveFilePicker(this);
                 }
                 // Console.WriteLine(items);
                 ImGui.EndPopup();
             }
 
-            if (ImGui.BeginPopup("no_items_warning"))
-            {
-                ImGui.Text("You do not have any audio files in the current queue!!");
-                ImGui.EndPopup();
-            }
-            if (ImGui.BeginPopup("no_output_folder"))
-            {
-                ImGui.Text("You have not selected an output folder!!");
-                ImGui.EndPopup();
-            }
+            var progressModal = true;
 
-            if (ImGui.BeginPopup("file-conversion-finished"))
-            {
-                ImGui.Text($"Converted file to wav");
 
-                ImGui.EndPopup();
-            }
 
-            if (ImGui.BeginPopup("item-added-popup"))
-            {
-                ImGui.Text($"Added item to queue");
 
-                ImGui.EndPopup();
-            }
+            DrawPopupMenus();
+
             ImGui.End();
             rlImGui.End();
             EndDrawing();
         }
-    }
-
-    static string Transcribe(string audioFileLocation)
-    {
-        return VoskHandler.ReadFile2(audioFileLocation);
 
     }
 
@@ -346,29 +481,46 @@ public class Scribr
         await Task.WhenAll(tasks);
     }
 
-    // static void Worker(object state)
-    // {
-
-    //     for (int i = 0; i < items.Count; i++)
-    //     {
-    //         var queueItem = Helpers.BreakdownQueueItem(items.ToArray()[i]);
-    //         queueItem[2] = "true";
-    //         var replaceValue = $"{queueItem[0]}|{queueItem[1]}|{queueItem[2]}";
-
-    //         var output = VoskHandler.ReadFile2(queueItem[0]);
-    //         var fileNameLocation = outputLocation + "/output.txt";
-
-    //         var finalText = Helpers.ReadJSONString(output, "text");
-    //         Helpers.WriteFileToPath(fileNameLocation, finalText);
-
-    //     }
-    // }
-
-    public void StartAndRunQueue()
+    void DrawPopupMenus()
     {
+        if (ImGui.BeginPopup("no_items_warning"))
+        {
+            ImGui.Text("You do not have any audio files in the current queue!!");
+            ImGui.EndPopup();
+        }
+        if (ImGui.BeginPopup("no_output_folder"))
+        {
+            ImGui.Text("You have not selected an output folder!!");
+            ImGui.EndPopup();
+        }
 
+        if (ImGui.BeginPopup("file_conversion_finished"))
+        {
+            ImGui.Text($"Converted file to wav");
+
+            ImGui.EndPopup();
+        }
+
+        if (ImGui.BeginPopup("item_added_popup"))
+        {
+            ImGui.Text($"Added item to queue");
+
+            ImGui.EndPopup();
+        }
     }
 
+    void ExtractModelFile(string path)
+    {
+        using (ZipArchive archive = ZipFile.OpenRead(path))
+        {
+            ZipArchiveEntry entry = archive.Entries[0];
+            var extractPath = Path.GetFullPath("model");
+            entry.ExtractToFile(Path.Combine(extractPath, entry.Name));
+            Console.WriteLine(entry.FullName);
+            //entry.ExtractToFile(extractPath);
+
+        }
+    }
 
     public void Stop()
     {

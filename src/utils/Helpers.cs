@@ -34,6 +34,22 @@ public static class Helpers
         return finalText;
     }
 
+    public static void ClearFolder(string folderPath)
+    {
+
+        DirectoryInfo di = new DirectoryInfo(folderPath);
+
+
+        foreach (FileInfo file in di.EnumerateFiles())
+        {
+            file.Delete();
+        }
+        foreach (DirectoryInfo dir in di.EnumerateDirectories())
+        {
+            dir.Delete(true);
+        }
+    }
+
     public static string[] SeparateFromExtension(string path)
     {
         var firstSplit = path.Split(".")[0];
