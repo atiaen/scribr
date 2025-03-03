@@ -26,6 +26,8 @@ settings.json
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+[Rr]eleases
+
 *_i.c
 *_p.c
 *_i.h

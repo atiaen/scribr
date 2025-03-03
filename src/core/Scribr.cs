@@ -6,8 +6,6 @@ using Raylib_cs;
 using Scriber;
 using System.Text.Json;
 using System.Collections;
-using FFMpegCore;
-using FFMpegCore.Pipes;
 using System.Diagnostics;
 using System.IO.Compression;
 
@@ -26,7 +24,7 @@ public class Scribr
     {
         string fileName = "settings.json";
 
-        if (!File.Exists("settings.json"))
+        if (!File.Exists(fileName))
         {
             var newSettings = new Settings
             {
@@ -55,7 +53,7 @@ public class Scribr
 
 
         rlImGui.Setup(true);
-        var fontPtr = ImGui.GetIO().Fonts.AddFontFromFileTTF("fonts/CothamSans.otf", 16f);
+        var fontPtr = ImGui.GetIO().Fonts.AddFontFromFileTTF("fonts/font.otf", 16f);
         rlImGui.ReloadFonts();
         unsafe
         {
@@ -70,6 +68,9 @@ public class Scribr
     {
 
         var beginDisabled = false;
+        var isRunning = false;
+        List<string> modelOptions = new List<string>{ "vosk", "whisper" };
+        int optionsSelectedIndex = 0; // Here we store our selection data as an index.
 
         while (!WindowShouldClose())
         {
@@ -102,6 +103,11 @@ public class Scribr
                     ImGui.EndMenuBar();
                 }
 
+            }
+
+            if (isRunning)
+            {
+                beginDisabled = true;
             }
 
             if (ImGui.BeginTabBar("Menus", ImGuiTabBarFlags.Reorderable | ImGuiTabBarFlags.NoCloseWithMiddleMouseButton))
@@ -179,11 +185,7 @@ public class Scribr
                         beginDisabled = true;
                         disabledMessage = "You currently do not have any vosk models installed.\nPlease first install a model to continue";
                     }
-                    else
-                    {
-                        beginDisabled = false;
-                        disabledMessage = "";
-                    }
+
 
                     //Main area where the magic happens
                     if (ImGui.Button("Start", new Vector2(ImGui.GetContentRegionAvail().X * 0.5f, 0.0f)))
@@ -203,7 +205,7 @@ public class Scribr
 
                         if (items.Count > 0 && !string.IsNullOrWhiteSpace(folderLocation))
                         {
-                            beginDisabled = true;
+                            isRunning = true;
 
                             disabledMessage = "Please wait while your current transcription list is being processed";
                             List<Task> tasks = new List<Task>();
@@ -218,16 +220,27 @@ public class Scribr
                                 items[i] = replaceValue;
 
                                 // Console.WriteLine($"{folderLocation}/{queueItem[1]}");
-
                                 Task tk = Task
                                 .Run(() =>
                                 {
                                     Console.WriteLine("Inside first task (path is): " + queueItem[0]);
-                                    var result = VoskHandler.ReadFile2(queueItem[0]);
+                                    string result = null;
+
+                                    if (settings.currentModel == "vosk")
+                                    {
+                                        result = VoskHandler.ReadFile2(queueItem[0]);
+
+                                    }
+
+                                    if (settings.currentModel == "whisper")
+                                    {
+                                        result = WhisperHandler.UseWhisper(queueItem[0]);
+                                    }
+                                    return result;
+
                                     // var result = WhisperHandler.UseWhisperWithAsync(queueItem[0]);
 
                                     // Console.WriteLine("Still inside first final result is: " + result);
-                                    return result;
                                 })
                                 .ContinueWith(val =>
                                 {
@@ -237,6 +250,7 @@ public class Scribr
                                 .ContinueWith((a) =>
                                 {
                                     beginDisabled = false;
+                                    isRunning = false;
 
                                     for (int i = 0; i < items.Count; i++)
                                     {
@@ -309,84 +323,11 @@ public class Scribr
                                 //What's happening here is basically file conversion since Vosk only uses .wav files I don't want to hassle too much about converting my files every time
                                 // So why not just convert it myself into a folder you can see that's what the else statement is doing using ffmpeg installed on the machine
                                 //EDIT: I will most likely include a binary of ffmpeg with each release as not to hassle users with this.
-                                //EDIT 2: I will probably just convert files regardless of type as all files need to be mono and I do not want to have to actively monitor this at all times.
-                                //EDIT This if function will be going away. I will simply convert files regardless and move conversions to scriber outputs
-                                // if (fileExtension == "wav")
-                                // {
-                                //     var queueItem = $"{picker.SelectedFile}|{final}|{false}";
-                                //     var mediaInfo = FFProbe.Analyse(picker.SelectedFile);
-                                //     if ((mediaInfo.PrimaryAudioStream.SampleRateHz > 16000 && mediaInfo.PrimaryAudioStream.SampleRateHz < 16000) || mediaInfo.PrimaryAudioStream.Channels > 1)
-                                //     {
-                                //         Console.WriteLine("Attempting to convert file");
-                                //         var audioInputStream = File.Open(picker.SelectedFile, FileMode.Open);
 
-                                //         Directory.CreateDirectory("conversions");
-                                //         var audioOutputStream = File.Open($"conversions/{final}.wav", FileMode.OpenOrCreate);
-
-
-                                //         FFMpegArguments
-                                //                 .FromPipeInput(new StreamPipeSource(audioInputStream))
-                                //                 .OutputToPipe(new StreamPipeSink(audioOutputStream),
-                                //                 options =>
-                                //                 options.WithCustomArgument("-ac 1")
-                                //                 .WithAudioSamplingRate(16000)
-                                //                 .ForceFormat("wav")).ProcessAsynchronously();
-
-
-                                //         queueItem = $"conversions/{final}.wav|{final}|{false}";
-                                //         items.Add(queueItem);
-
-                                //     }
-                                //     else
-                                //     {
-                                //         items.Add(queueItem);
-                                //     }
-                                //     // Console.WriteLine(mediaInfo.AudioStreams.Count);
-                                // }
-                                // else
-                                // {
-                                //     Console.WriteLine("Attempting to convert file");
-                                //     var audioInputStream = File.Open(picker.SelectedFile, FileMode.Open);
-
-                                //     Directory.CreateDirectory("conversions");
-                                //     var audioOutputStream = File.Open($"conversions/{final}.wav", FileMode.OpenOrCreate);
-
-
-                                //     FFMpegArguments
-                                //             .FromPipeInput(new StreamPipeSource(audioInputStream))
-                                //             .OutputToPipe(new StreamPipeSink(audioOutputStream),
-                                //             options =>
-                                //             options.WithCustomArgument("-ac 1")
-                                //             .WithAudioSamplingRate(16000)
-                                //             .ForceFormat("wav")).ProcessAsynchronously();
-
-
-                                //     var queueItem = $"conversions/{final}.wav|{final}|{false}";
-                                //     items.Add(queueItem);
-
-                                //     //Todo: Popup isn't popping. fix might be to change from - to _ instead
-                                //     ImGui.OpenPopup("file_conversion_finished");
-
-                                //     Console.WriteLine("Converted file");
-
-                                // }
-
-                                Console.WriteLine("Attempting to convert file");
-                                var audioInputStream = File.Open(picker.SelectedFile, FileMode.Open);
-
-                                Directory.CreateDirectory($"{folderLocation}/conversions");
-                                var audioOutputStream = File.Open($"{folderLocation}/conversions/{final}.wav", FileMode.OpenOrCreate);
-
-
-                                FFMpegArguments
-                                        .FromPipeInput(new StreamPipeSource(audioInputStream))
-                                        .OutputToPipe(new StreamPipeSink(audioOutputStream),
-                                        options =>
-                                        options.WithCustomArgument("-ac 1")
-                                        .WithAudioSamplingRate(16000)
-                                        .ForceFormat("wav")).ProcessAsynchronously();
-
-
+                                string command = $"-y -i \"{picker.SelectedFile}\" -f wav -ar 16000 -ac 1 \"{folderLocation}/conversions/{final}.wav\"";
+                                Console.WriteLine("Executing this command: " + command);
+                                var res = Helpers.Execute("./bin/linux-x64/ffmpeg", command);
+                                Console.WriteLine("Result is:" + res);
                                 var queueItem = $"{folderLocation}/conversions/{final}.wav|{final}|{false}";
                                 items.Add(queueItem);
 
@@ -428,10 +369,34 @@ public class Scribr
                     ImGui.Dummy(new Vector2(0.0f, 5.0f));
                     ImGui.Separator();
 
+                    ImGui.Text("Select what transcription model to use (default is vosk)");
+                    string previewValue = modelOptions[optionsSelectedIndex];
+
+                    if (ImGui.BeginCombo("##options", previewValue, ImGuiComboFlags.WidthFitPreview))
+                    {
+                        for (int i = 0; i < modelOptions.Count; i++)
+                        {
+                            bool is_selected = optionsSelectedIndex == i;
+
+                            if (ImGui.Selectable(modelOptions[i], is_selected))
+                                optionsSelectedIndex = i;
+
+                            if (is_selected)
+                            {
+                                ImGui.SetItemDefaultFocus();
+                                settings.currentModel = modelOptions[optionsSelectedIndex];
+                                SaveSettings();
+                            }
 
 
+                        }
+                        ImGui.EndCombo();
+                    }
 
-                    ImGui.Text("Add/Overwrite existing model");
+                    ImGui.Dummy(new Vector2(0.0f, 5.0f));
+                    ImGui.Separator();
+
+                    ImGui.Text("Add/Overwrite existing vosk model");
                     if (ImGui.Button("Click here to import a model"))
                     {
                         ImGui.OpenPopup("import-model");
@@ -528,10 +493,10 @@ public class Scribr
                             // Console.WriteLine(folderPicker.SelectedFile);
                             folderLocation = folderPicker.SelectedFile;
                             settings.folderLocation = folderPicker.SelectedFile;
-
-                            var options = new JsonSerializerOptions { WriteIndented = true };
-                            string jsonString = JsonSerializer.Serialize(settings, options);
-                            File.WriteAllText("settings.json", jsonString);
+                            SaveSettings();
+                            // var options = new JsonSerializerOptions { WriteIndented = true };
+                            // string jsonString = JsonSerializer.Serialize(settings, options);
+                            // File.WriteAllText("settings.json", jsonString);
 
 
                             FilePicker.RemoveFilePicker(this);
@@ -625,6 +590,13 @@ public class Scribr
         }
 
         Directory.Delete($"model/{entryName}");
+    }
+
+    void SaveSettings()
+    {
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        string jsonString = JsonSerializer.Serialize(settings, options);
+        File.WriteAllText("settings.json", jsonString);
     }
 
     public void Stop()

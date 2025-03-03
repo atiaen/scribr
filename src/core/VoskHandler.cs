@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using FFMpegCore;
 using Vosk;
 
 public class VoskHandler
@@ -44,10 +41,9 @@ public class VoskHandler
     public static string ReadFile2(string pathToFile)
     {
         Model model = new Model(Directory.GetCurrentDirectory() + "/model");
-        var mediaInfo = FFProbe.Analyse(pathToFile);
 
         // Demo byte buffer
-        VoskRecognizer rec = new VoskRecognizer(model, mediaInfo.PrimaryAudioStream.SampleRateHz);
+        VoskRecognizer rec = new VoskRecognizer(model, 16000);
         rec.SetMaxAlternatives(0);
         rec.SetWords(true);
         using (Stream source = File.OpenRead(pathToFile))

@@ -8,7 +8,7 @@ public static class WhisperHandler
 
     public static string UseWhisper(string fileName)
     {
-        using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.Debug);
+        // using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.Debug);
 
         using var whisperFactory = WhisperFactory.FromPath("ggml-base.bin");
         var sb = new StringBuilder();
@@ -33,7 +33,7 @@ public static class WhisperHandler
 
     public static async Task UseWhisperWithAsync(string fileName)
     {
-        using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.Debug);
+        // using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.Debug);
 
         using var whisperFactory = WhisperFactory.FromPath("ggml-base.bin");
 
@@ -51,4 +51,6 @@ public static class WhisperHandler
         }
         // processor.ProcessAsync(fileStream);
     }
+
+
 }

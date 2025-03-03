@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 public static class Helpers
@@ -50,6 +51,7 @@ public static class Helpers
         }
     }
 
+
     public static string[] SeparateFromExtension(string path)
     {
         var firstSplit = path.Split(".")[0];
@@ -68,5 +70,27 @@ public static class Helpers
         var status = splitText[2];
 
         return [filePath, fileName, status];
+    }
+
+    public static string Execute(string exePath, string parameters)
+    {
+        string result = "";
+
+        using (Process p = new Process())
+        {
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.CreateNoWindow = true;
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.FileName = exePath;
+            p.StartInfo.Arguments = parameters;
+            p.Start();
+
+            p.WaitForExit();
+            result = p.StandardOutput.ReadToEnd();
+
+
+        }
+
+        return result;
     }
 }
