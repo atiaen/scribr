@@ -8,22 +8,30 @@ using System.Text.Json;
 using System.Collections;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Text;
 
 
 public class Scribr
 {
     string folderLocation = "";
 
-    Settings settings;
+    Settings? settings;
 
     //Queue Items are stored in the following format of {filePath}|{fileName}|{transcribingStatus e.g true or false}
     static List<string> items = new List<string>();
 
     string disabledMessage = "";
+
+    string os = "";
+
+
+    HttpClient httpClient = new HttpClient();
+
     public void Start()
     {
         string fileName = "settings.json";
-
+        os = Helpers.GetOS();
         if (!File.Exists(fileName))
         {
             var newSettings = new Settings
@@ -69,8 +77,8 @@ public class Scribr
 
         var beginDisabled = false;
         var isRunning = false;
-        List<string> modelOptions = new List<string>{ "vosk", "whisper" };
-        int optionsSelectedIndex = 0; // Here we store our selection data as an index.
+        List<string> modelOptions = new List<string> { "vosk", "whisper" };
+        int optionsSelectedIndex = modelOptions.IndexOf(settings.currentModel); // Here we store our selection data as an index.
 
         while (!WindowShouldClose())
         {
@@ -98,6 +106,39 @@ public class Scribr
                             UseShellExecute = true,
                             Verb = "open"
                         });
+                    }
+
+                    if (ImGui.MenuItem("Get Vosk Model"))
+                    {
+                        string target = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
+
+
+                        Task.Run(() =>
+                        {
+                            Download(target, $"{folderLocation}/model.zip");
+
+                        });
+
+                        // Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+
+                    }
+
+                    if (ImGui.MenuItem("Get Whisper Model"))
+                    {
+                        string target = "https://ggml.ggerganov.com/ggml-model-whisper-tiny-q5_1.bin";
+                        Download(target, "bin/model.bin");
+
+                        // using (var client = new HttpClient())
+                        // {
+                        //     using (var s = client.GetStreamAsync(target))
+                        //     {
+                        //         using (var fs = new FileStream("bin/model.bin", FileMode.OpenOrCreate))
+                        //         {
+                        //             s.Result.CopyTo(fs);
+                        //         }
+                        //     }
+                        // }
+                        // Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
                     }
 
                     ImGui.EndMenuBar();
@@ -180,10 +221,10 @@ public class Scribr
                     ImGui.Separator();
 
 
-                    if (!Directory.Exists("model"))
+                    if (!Directory.Exists("model") || !File.Exists("bin/model.bin"))
                     {
                         beginDisabled = true;
-                        disabledMessage = "You currently do not have any vosk models installed.\nPlease first install a model to continue";
+                        disabledMessage = "You currently do not have any vosk or whisper models installed.\nPlease first install a model to continue";
                     }
 
 
@@ -244,11 +285,10 @@ public class Scribr
                                 })
                                 .ContinueWith(val =>
                                 {
-                                    Console.WriteLine("Inside second task (result is): " + val.Result);
-                                    Write(val.Result, $"{folderLocation}/{queueItem[1]}");
-                                }, TaskContinuationOptions.OnlyOnRanToCompletion)
-                                .ContinueWith((a) =>
-                                {
+                                    var result = val.Result;
+                                    Console.WriteLine("Inside second task (result is): " + result);
+                                    Write(result, $"{folderLocation}/{queueItem[1]}", settings.currentModel);
+
                                     beginDisabled = false;
                                     isRunning = false;
 
@@ -259,7 +299,6 @@ public class Scribr
                                         items[i] = replaceValue;
 
                                     }
-
                                 }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
                                 tasks.Add(tk);
@@ -309,6 +348,8 @@ public class Scribr
                         if (picker.Draw())
                         {
 
+                            Directory.CreateDirectory($"{folderLocation}/conversions");
+
                             //Where we add an item to the queue by deconstructing the full path,e.g getting the file name and path and adding a status
                             if (!items.Contains(picker.SelectedFile))
                             {
@@ -326,10 +367,21 @@ public class Scribr
 
                                 string command = $"-y -i \"{picker.SelectedFile}\" -f wav -ar 16000 -ac 1 \"{folderLocation}/conversions/{final}.wav\"";
                                 Console.WriteLine("Executing this command: " + command);
-                                var res = Helpers.Execute("./bin/linux-x64/ffmpeg", command);
-                                Console.WriteLine("Result is:" + res);
-                                var queueItem = $"{folderLocation}/conversions/{final}.wav|{final}|{false}";
-                                items.Add(queueItem);
+                                if (os == "win-x64")
+                                {
+                                    var res = Helpers.Execute("./bin/win-x64/ffmpeg.exe", command);
+                                    Console.WriteLine("Result is:" + res);
+                                    var queueItem = $"{folderLocation}/conversions/{final}.wav|{final}|{false}";
+                                    items.Add(queueItem);
+                                }
+                                else
+                                {
+                                    var res = Helpers.Execute($"./bin/{os}/ffmpeg", command);
+                                    Console.WriteLine("Result is:" + res);
+                                    var queueItem = $"{folderLocation}/conversions/{final}.wav|{final}|{false}";
+                                    items.Add(queueItem);
+                                }
+
 
                                 ImGui.OpenPopup("item_added_popup");
 
@@ -379,13 +431,15 @@ public class Scribr
                             bool is_selected = optionsSelectedIndex == i;
 
                             if (ImGui.Selectable(modelOptions[i], is_selected))
+                            {
                                 optionsSelectedIndex = i;
+                                settings.currentModel = modelOptions[i];
+                                SaveSettings();
+                            }
 
                             if (is_selected)
                             {
                                 ImGui.SetItemDefaultFocus();
-                                settings.currentModel = modelOptions[optionsSelectedIndex];
-                                SaveSettings();
                             }
 
 
@@ -393,18 +447,22 @@ public class Scribr
                         ImGui.EndCombo();
                     }
 
-                    ImGui.Dummy(new Vector2(0.0f, 5.0f));
-                    ImGui.Separator();
-
-                    ImGui.Text("Add/Overwrite existing vosk model");
-                    if (ImGui.Button("Click here to import a model"))
+                    if (settings.currentModel == "vosk")
                     {
-                        ImGui.OpenPopup("import-model");
+                        ImGui.Dummy(new Vector2(0.0f, 5.0f));
+                        ImGui.Separator();
+
+                        ImGui.Text("Add/Overwrite existing vosk model");
+                        if (ImGui.Button("Click here to import a model"))
+                        {
+                            ImGui.OpenPopup("import-model");
+
+                        }
+
+                        if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                            ImGui.SetTooltip("Importing a new vosk model will overwrite any existing model you have.\nThis action cannot be undone!");
 
                     }
-
-                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
-                        ImGui.SetTooltip("Importing a new vosk model will overwrite any existing model you have.\nThis action cannot be undone!");
 
                     ImGui.Dummy(new Vector2(0.0f, 5.0f));
                     ImGui.Separator();
@@ -524,11 +582,19 @@ public class Scribr
 
     }
 
-    static void Write(string output, string outputFileLocation)
+    static void Write(string output, string outputFileLocation, string model)
     {
         var fileNameLocation = outputFileLocation + "/output.txt";
-        var finalText = Helpers.ReadJSONString(output, "text");
-        Helpers.WriteFileToPath(fileNameLocation, finalText);
+        if (model == "whisper")
+        {
+            Helpers.WriteFileToPath(fileNameLocation, output);
+        }
+        else
+        {
+            var finalText = Helpers.ReadJSONString(output, "text");
+            Helpers.WriteFileToPath(fileNameLocation, finalText);
+        }
+
     }
 
     static async Task RunAsyncTasks(Task[] tasks)
@@ -597,6 +663,61 @@ public class Scribr
         var options = new JsonSerializerOptions { WriteIndented = true };
         string jsonString = JsonSerializer.Serialize(settings, options);
         File.WriteAllText("settings.json", jsonString);
+    }
+
+    //Todo add download progress instead of indeterminate
+    async void Download(string url, string filePath)
+    {
+
+        ProcessStartInfo startInfo = new ProcessStartInfo();
+        startInfo.CreateNoWindow = false;
+        startInfo.RedirectStandardInput = true;
+        startInfo.FileName = os == "win-x64" ? "cmd.exe" : "/bin/bash";
+
+        Process process = new Process();
+        process.StartInfo = startInfo;
+        process.Start();
+
+        process.StandardInput.WriteLine("Write a new line ...");
+        process.StandardInput.WriteLine("terminate");
+
+
+        var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Error: " + response.StatusCode);
+            return;
+        }
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+        var canReportProgress = totalBytes != -1;
+        var totalBytesRead = 0L;
+        var readChunkSize = 8192; // The size of the buffer for each read operation
+
+        using (var contentStream = await response.Content.ReadAsStreamAsync())
+        using (var fileStream = new FileStream(filePath,FileMode.OpenOrCreate))
+        {
+            var buffer = new byte[readChunkSize];
+            int bytesRead;
+
+            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+
+                if (canReportProgress)
+                {
+                    var progressPercentage = Math.Round((double)totalBytesRead / totalBytes * 100, 2);
+                    Console.WriteLine($"Downloaded {totalBytesRead} of {totalBytes} bytes. {progressPercentage}% complete");
+                }
+            }
+
+        }
+
+        process.WaitForExit();
+
     }
 
     public void Stop()

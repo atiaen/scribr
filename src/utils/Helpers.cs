@@ -1,10 +1,31 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 public static class Helpers
 {
 
 
+    public static string GetOS()
+    {
+        string os = "";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            os = "win-x64";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            os = "osx-x64";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            os = "linux-x64";
+        }
+
+        return os;
+    }
     public static void WriteFileToPath(string fileNameLocation, string finalText)
     {
         try

@@ -10,7 +10,7 @@ public static class WhisperHandler
     {
         // using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.Debug);
 
-        using var whisperFactory = WhisperFactory.FromPath("ggml-base.bin");
+        using var whisperFactory = WhisperFactory.FromPath("bin/model.bin");
         var sb = new StringBuilder();
 
         // This section creates the processor object which is used to process the audio file, it uses language `auto` to detect the language of the audio file.
