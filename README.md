@@ -16,14 +16,6 @@
 
 ## Installation
 
-### Prerequisites
-
-Ensure you have the following installed:
-
-- **Windows:** [.NET SDK](https://dotnet.microsoft.com/en-us/download)
-- **Linux:** `.NET SDK`, FFmpeg, and additional required libraries
-- **MacOS:** `.NET SDK` and dependencies (see platform-specific instructions below)
-
 ### Download Prebuilt Binary
 
 You can download the latest prebuilt binaries from the [Releases](https://github.com/atiaen/scribr/releases) page.
@@ -34,10 +26,14 @@ Alternatively, to build from source, follow the steps below.
 
 ## Building from Source
 
+### Prerequisites
+
+Regardless of platform, ensure you have the .NET SDK installed and set up on your machine. [.NET SDK](https://dotnet.microsoft.com/en-us/download)
+
 ### Clone the Repository
 
 ```sh
-git clone https://github.com/your-repo/scribr.git
+git clone https://github.com/atiaen/scribr.git
 cd scribr
 ```
 
@@ -101,7 +97,7 @@ If you encounter any bugs or have feature requests, please open an issue on the 
 - **[OpenAI Whisper](https://github.com/openai/whisper)**
 - **[Raylib](https://www.raylib.com/)**
 - **[Dear ImGui](https://github.com/ocornut/imgui)**
-- **[Cothman Sans](https://github.com/sebsan/Cotham?tab=readme-ov-file)**
+- **[Cothman Sans](https://github.com/sebsan/Cotham)**
 ---
 
 ### Stay Updated
