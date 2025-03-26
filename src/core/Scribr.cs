@@ -24,9 +24,13 @@ public class Scribr
     string disabledMessage = "";
 
     string os = "";
+    List<string> modelOptions = new List<string> { "vosk", "whisper" };
 
 
     HttpClient httpClient = new HttpClient();
+    bool showDownloadModal = false;
+
+    string modal = "";
 
     public void Start()
     {
@@ -41,7 +45,7 @@ public class Scribr
                 voskModelType = ""
             };
             var options = new JsonSerializerOptions { WriteIndented = true };
-
+            settings = newSettings;
             string jsonString = JsonSerializer.Serialize(newSettings, options);
             File.WriteAllText(fileName, jsonString);
         }
@@ -77,8 +81,7 @@ public class Scribr
 
         var beginDisabled = false;
         var isRunning = false;
-        List<string> modelOptions = new List<string> { "vosk", "whisper" };
-        int optionsSelectedIndex = modelOptions.IndexOf(settings.currentModel); // Here we store our selection data as an index.
+        int optionsSelectedIndex = modelOptions.IndexOf(settings.currentModel);
 
         while (!WindowShouldClose())
         {
@@ -87,7 +90,7 @@ public class Scribr
             ClearBackground(Color.DarkGray);
             rlImGui.Begin();
 
-            //Imgui Window Constraints seperate from Raylib Window Size etc
+            //Imgui Window Constraints separate from Raylib Window Size etc
             ImGui.SetNextWindowSizeConstraints(new Vector2(GetScreenWidth(), GetScreenHeight()), new Vector2(GetScreenWidth(), GetScreenHeight()));
 
 
@@ -108,38 +111,45 @@ public class Scribr
                         });
                     }
 
-                    if (ImGui.MenuItem("Get Vosk Model"))
+                    if (ImGui.MenuItem("Get Vosk Model") && !string.IsNullOrWhiteSpace(folderLocation))
                     {
-                        string target = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
-
-
+                        showDownloadModal = true;
                         Task.Run(() =>
                         {
+                            string target = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
                             Download(target, $"{folderLocation}/model.zip");
 
                         });
 
-                        // Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                    }
+
+                    if (string.IsNullOrWhiteSpace(folderLocation))
+                    {
+                        if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                            ImGui.SetTooltip("You have not choosen an output folder yet. \n Please do that in settings first");
 
                     }
+                    else
+                    {
+                        if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                            ImGui.SetTooltip("This will automatically download the smallest vosk model as a zip file into your output folder");
+                    }
+
+
 
                     if (ImGui.MenuItem("Get Whisper Model"))
                     {
-                        string target = "https://ggml.ggerganov.com/ggml-model-whisper-tiny-q5_1.bin";
-                        Download(target, "bin/model.bin");
+                        showDownloadModal = true;
+                        Task.Run(() =>
+                        {
+                            string target = "https://ggml.ggerganov.com/ggml-model-whisper-tiny-q5_1.bin";
+                            Download(target, "bin/model.bin");
 
-                        // using (var client = new HttpClient())
-                        // {
-                        //     using (var s = client.GetStreamAsync(target))
-                        //     {
-                        //         using (var fs = new FileStream("bin/model.bin", FileMode.OpenOrCreate))
-                        //         {
-                        //             s.Result.CopyTo(fs);
-                        //         }
-                        //     }
-                        // }
-                        // Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                        });
                     }
+
+                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.ForTooltip))
+                        ImGui.SetTooltip("This will automatically download the smallest whisper model into the bin folder");
 
                     ImGui.EndMenuBar();
                 }
@@ -178,13 +188,13 @@ public class Scribr
                     ImGui.Separator();
 
 
-                    //Draw list of add files for transcribing in a listbox
+                    //Draw list of added files for transcribing in a listbox
                     if (ImGui.BeginListBox("##", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetContentRegionAvail().Y - 80)))
                     {
                         for (int n = 0; n < items.Count; n++)
                         {
 
-                            //Here we just simply split the queue item string into separate variables for individual us
+                            //Here we just simply split the queue item string into separate variables for individual use
                             var fullText = items[n];
                             var all = Helpers.BreakdownQueueItem(fullText);
 
@@ -221,10 +231,27 @@ public class Scribr
                     ImGui.Separator();
 
 
-                    if (!Directory.Exists("model") || !File.Exists("bin/model.bin"))
+
+                    if (!Directory.Exists("model") && settings.currentModel == "vosk")
                     {
                         beginDisabled = true;
-                        disabledMessage = "You currently do not have any vosk or whisper models installed.\nPlease first install a model to continue";
+                        disabledMessage = "You currently do not have any vosk models installed.\nPlease first install a model to continue";
+                    }
+
+                    if (!File.Exists("bin/model.bin") && settings.currentModel == "whisper")
+                    {
+                        beginDisabled = true;
+                        disabledMessage = "You currently do not have any vosk models installed.\nPlease first install a model to continue";
+
+                    }
+                    if (Directory.Exists("model") && settings.currentModel == "vosk")
+                    {
+                        beginDisabled = false;
+                    }
+
+                    if (File.Exists("bin/model.bin") && settings.currentModel == "whisper")
+                    {
+                        beginDisabled = false;
                     }
 
 
@@ -265,7 +292,7 @@ public class Scribr
                                 .Run(() =>
                                 {
                                     Console.WriteLine("Inside first task (path is): " + queueItem[0]);
-                                    string result = null;
+                                    string? result = null;
 
                                     if (settings.currentModel == "vosk")
                                     {
@@ -485,14 +512,6 @@ public class Scribr
                         ImGui.Text("Are you sure you want to delete all your Scribr outputs??");
                         ImGui.Separator();
 
-                        //static int unused_i = 0;
-                        //ImGui.Combo("Combo", ref unused_i, "Delete\0Delete harder\0");
-
-                        // static bool dontAskMeNextTime = false;
-                        // ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(0, 0));
-                        // ImGui.Checkbox("Don't ask me next time", ref dontAskMeNextTime);
-                        // ImGui.PopStyleVar();
-
                         if (ImGui.Button("OK", new Vector2(ImGui.GetContentRegionAvail().X * 0.5f, 0.0f)))
                         {
                             Helpers.ClearFolder(folderLocation);
@@ -518,19 +537,12 @@ public class Scribr
                         {
                             if (!Directory.Exists("model"))
                             {
-                                // Directory.CreateDirectory("model");
-
                                 ExtractModelFile(picker.SelectedFile);
-                                // ZipFile.ExtractToDirectory(picker.SelectedFile, "model");
-
                             }
                             else
                             {
                                 Helpers.ClearFolder("model");
                                 ExtractModelFile(picker.SelectedFile);
-
-                                // ZipFile.ExtractToDirectory(picker.SelectedFile, "model");
-
                             }
                             FilePicker.RemoveFilePicker(this);
 
@@ -552,9 +564,6 @@ public class Scribr
                             folderLocation = folderPicker.SelectedFile;
                             settings.folderLocation = folderPicker.SelectedFile;
                             SaveSettings();
-                            // var options = new JsonSerializerOptions { WriteIndented = true };
-                            // string jsonString = JsonSerializer.Serialize(settings, options);
-                            // File.WriteAllText("settings.json", jsonString);
 
 
                             FilePicker.RemoveFilePicker(this);
@@ -570,8 +579,12 @@ public class Scribr
                 ImGui.EndTabBar();
 
             }
+            if (showDownloadModal)
+            {
+                ImGui.OpenPopup("download");
 
-
+            }
+            DrawDownloadModal();
 
             DrawPopupMenus();
 
@@ -668,21 +681,7 @@ public class Scribr
     //Todo add download progress instead of indeterminate
     async void Download(string url, string filePath)
     {
-
-        ProcessStartInfo startInfo = new ProcessStartInfo();
-        startInfo.CreateNoWindow = false;
-        startInfo.RedirectStandardInput = true;
-        startInfo.FileName = os == "win-x64" ? "cmd.exe" : "/bin/bash";
-
-        Process process = new Process();
-        process.StartInfo = startInfo;
-        process.Start();
-
-        process.StandardInput.WriteLine("Write a new line ...");
-        process.StandardInput.WriteLine("terminate");
-
-
-        var httpClient = new HttpClient();
+        var text = "";
         var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
         if (!response.IsSuccessStatusCode)
@@ -697,7 +696,7 @@ public class Scribr
         var readChunkSize = 8192; // The size of the buffer for each read operation
 
         using (var contentStream = await response.Content.ReadAsStreamAsync())
-        using (var fileStream = new FileStream(filePath,FileMode.OpenOrCreate))
+        using (var fileStream = new FileStream(filePath, FileMode.OpenOrCreate))
         {
             var buffer = new byte[readChunkSize];
             int bytesRead;
@@ -710,16 +709,31 @@ public class Scribr
                 if (canReportProgress)
                 {
                     var progressPercentage = Math.Round((double)totalBytesRead / totalBytes * 100, 2);
-                    Console.WriteLine($"Downloaded {totalBytesRead} of {totalBytes} bytes. {progressPercentage}% complete");
+                    text = $"Downloaded {totalBytesRead} of {totalBytes} bytes. {progressPercentage}% complete";
+                    // Console.WriteLine($"Downloaded {totalBytesRead} of {totalBytes} bytes. {progressPercentage}% complete");
                 }
             }
 
         }
 
-        process.WaitForExit();
+        showDownloadModal = false;
 
     }
 
+    void DrawDownloadModal()
+    {
+        if (ImGui.BeginPopupModal("download", ref showDownloadModal, ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+        {
+            ImGui.ProgressBar(-1.0f * (float)ImGui.GetTime(), new Vector2(0.0f, 0.0f), "Downloading..");
+            // ImGui.SameLine(0.0f, ImGui.GetStyle().ItemInnerSpacing.X);
+            // ImGui.Text("Indeterminate");
+
+            ImGui.EndPopup();
+
+        }
+
+
+    }
     public void Stop()
     {
         rlImGui.Shutdown();

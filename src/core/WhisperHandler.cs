@@ -19,7 +19,6 @@ public static class WhisperHandler
             .WithLanguage("auto")
             .WithSegmentEventHandler((segment) =>
             {
-                // Do whetever you want with your segment here.
                 sb.AppendLine($"{segment.Text}");
 
             })
