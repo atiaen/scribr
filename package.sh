@@ -1,4 +1,4 @@
-echo "Building and packaging Scriber"
+echo "Building and packaging Scribr"
 pwd
 
 ## declare an runtimes array

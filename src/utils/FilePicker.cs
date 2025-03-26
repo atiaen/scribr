@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using Num = System.Numerics;
 using Raylib_cs;
-using Scriber;
+using Scribr;
 using System.Numerics;
 
 // Slightly modified filepicker from https://gist.github.com/prime31/91d1582624eb2635395417393018016e

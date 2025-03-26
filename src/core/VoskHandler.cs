@@ -5,7 +5,6 @@ public class VoskHandler
 
     public static string ReadFile(string pathToFile)
     {
-        // Model model = new Model("/home/deck/Documents/Projects/AI&LLMS/Scriber/src/models/model");
         Model model = new Model(Directory.GetCurrentDirectory() + "/src/models/model");
         SpkModel spkModel = new SpkModel(Directory.GetCurrentDirectory() + "/src/models/model/conf");
         VoskRecognizer rec = new VoskRecognizer(model, 48000.0f);

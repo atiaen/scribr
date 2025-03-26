@@ -3,7 +3,7 @@ using ImGuiNET;
 using static Raylib_cs.Raylib;
 using System.Numerics;
 using Raylib_cs;
-using Scriber;
+using Scribr;
 using System.Text.Json;
 using System.Collections;
 using System.Diagnostics;
@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 
-public class Scribr
+public class ScribrApp
 {
     string folderLocation = "";
 

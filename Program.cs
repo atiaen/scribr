@@ -1,4 +1,4 @@
-﻿namespace Scriber;
+﻿namespace Scribr;
 
 class Program
 {
@@ -7,7 +7,7 @@ class Program
     static void Main(string[] args)
     {
         Console.WriteLine("Starting Scribr");
-        Scribr app = new Scribr();
+        ScribrApp app = new ScribrApp();
         app.Start();
         app.Run();
         app.Stop();
